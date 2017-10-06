@@ -1,0 +1,13 @@
+name: ${project.name}
+version: ${project.version}
+author: [TealNerd]
+depend: [CivModCore]
+main: ${project.groupId}.${project.artifactId}
+commands:
+  createalt:
+    aliases: [ca, altcreate, newalt]
+  alts:
+    permission: betteralts.admin
+permissions:
+  betteralts.admin:
+    default: op

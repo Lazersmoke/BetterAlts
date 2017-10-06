@@ -1,0 +1,11 @@
+.git
+.settings
+.classpath
+.project
+target/
+**/target/
+**/apidocs/
+**/.settings/
+**/.project
+**/.classpath
+**/dependency-reduced-pom.xml

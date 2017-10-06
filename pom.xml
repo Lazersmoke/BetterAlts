@@ -1,0 +1,28 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.civclassic.betteralts</groupId>
+  <artifactId>betteralts-parent</artifactId>
+  <version>1.0</version>
+  <packaging>pom</packaging>
+  
+  <repositories>
+  	<repository>
+  		<id>spigot</id>
+		<url>https://hub.spigotmc.org/nexus/content/repositories/snapshots/</url>
+  	</repository>
+  	<repository>
+  		<id>bungee</id>
+  		<url>https://oss.sonatype.org/content/repositories/snapshots</url>
+  	</repository>
+  	<repository>
+    	<id>md_5-repo</id>
+    	<url>http://repo.md-5.net/content/repositories/public/</url>
+  	</repository>
+  </repositories>
+  
+  <modules>
+  	<module>betteralts-api</module>
+  	<module>betteralts-bukkit</module>
+  	<module>betteralts-bungee</module>
+  </modules>
+</project>

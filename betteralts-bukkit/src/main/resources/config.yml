@@ -1,0 +1,19 @@
+database:
+ host: localhost
+ port: 3306
+ database: betteralts
+ user: root
+ password: password
+ poolSize: 10
+ connectionTimeout: 10000
+ idleTimeout: 600000
+ maxLifetime: 7200000
+requirements:
+ diamond:
+  material: DIAMOND
+  amount: 32
+ emerald:
+  material: EMERALD
+  amount: 64
+#Uses javascript engine to compute requirements, replaces 'x' with current number of alts
+scalingEquation: "x*x"
