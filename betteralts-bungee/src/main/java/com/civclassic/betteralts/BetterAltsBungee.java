@@ -1,5 +1,6 @@
 package com.civclassic.betteralts;
 
+import com.civclassic.betteralts.storage.Database;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -7,12 +8,10 @@ import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.sql.SQLException;
+import java.util.List;
 import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
-import com.civclassic.betteralts.storage.Database;
-
 import net.md_5.bungee.api.ChatColor;
 import net.md_5.bungee.api.connection.PendingConnection;
 import net.md_5.bungee.api.event.PreLoginEvent;
@@ -30,15 +29,19 @@ public class BetterAltsBungee extends Plugin implements Listener {
 	private Configuration config;
 	private Database db;
 	private Logger log;
-	
+	private List<String> baseIps;
+
+	@Override
 	public void onEnable() {
 		log = getLogger();
 		try {
-			if(!getDataFolder().exists()) getDataFolder().mkdir();
+			if (!getDataFolder().exists()) {
+				getDataFolder().mkdir();
+			}
 
 			File configFile = new File(getDataFolder(), "config.yml");
 
-			if(!configFile.exists()) {
+			if (!configFile.exists()) {
 				try (InputStream in = getResourceAsStream("config.yml")) {
 					Files.copy(in, configFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
 				}
@@ -47,7 +50,7 @@ public class BetterAltsBungee extends Plugin implements Listener {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
-		if(config == null) {
+		if (config == null) {
 			log.severe("No database credentials, shut her down!");
 			return;
 		}
@@ -67,35 +70,40 @@ public class BetterAltsBungee extends Plugin implements Listener {
 			log.log(Level.SEVERE, "Error loading db, check the credentials?", e);
 			return;
 		}
+		baseIps = config.getStringList("baseIPs");
 		getProxy().getPluginManager().registerListener(this, this);
 	}
-	
+
 	@EventHandler
 	public void onPreLogin(PreLoginEvent event) {
 		PendingConnection conn = event.getConnection();
-		UUID mojangId = conn.getUniqueId();
-		UUID main;
-		do {
-			db.addNewPlayer(mojangId);
-		} while ((main = db.getRealId(mojangId)) == null);
-		conn.setUniqueId(main);
-		String code = conn.getVirtualHost().getHostString().split("\\.")[0];
-		if(code == "mc" || code == "play") return;
-		if(!conn.isOnlineMode()) {
-			event.setCancelReason(ChatColor.DARK_RED + "You must be authenticated to connect!");
+		if (!conn.isOnlineMode()) {
+			event.setCancelReason(ChatColor.RED + "You must be authenticated to connect!");
 			event.setCancelled(true);
-		} else {
-			UUID alt = db.getAltFromCode(code);
-			if(db.isValidAlt(main, alt)) {
-				conn.setUniqueId(alt);
-				setRealName(conn, db.getAltName(alt));
-			} else {
-				event.setCancelReason(ChatColor.DARK_RED + "Invalid alt code, message modmail if you think this is an error.");
-				event.setCancelled(true);
-			}
+			return;
 		}
+		UUID mojangId = conn.getUniqueId();
+		// first check for remap
+		UUID serverSideId = db.getServerSideId(mojangId);
+
+		int altId = db.getAltId(mojangId);
+		// if altId is -1, the player is logging in for the first time
+		if (altId == -1) {
+			serverSideId = db.addNewPlayer(serverSideId, conn.getName());
+		}
+
+		// check if player is using right login code
+		String loginCode = db.getCodeByUUID(serverSideId);
+
+		if (!conn.getVirtualHost().getHostString().startsWith(loginCode)) {
+			event.setCancelReason(ChatColor.RED + "You are using an invalid login id");
+			event.setCancelled(true);
+			return;
+		}
+		conn.setUniqueId(serverSideId);
+		setRealName(conn, db.getAltName(serverSideId));
 	}
-	
+
 	private void setRealName(PendingConnection conn, String name) {
 		InitialHandler handle = (InitialHandler) conn;
 		try {
@@ -104,14 +112,14 @@ public class BetterAltsBungee extends Plugin implements Listener {
 			LoginRequest request = (LoginRequest) loginField.get(handle);
 			request.setData(name);
 		} catch (NoSuchFieldException | IllegalArgumentException | IllegalAccessException e) {
-			//e.printStackTrace();
+			// e.printStackTrace();
 		}
 		try {
 			Field nameField = InitialHandler.class.getDeclaredField("name");
 			nameField.setAccessible(true);
 			nameField.set(handle, name);
 		} catch (NoSuchFieldException | IllegalArgumentException | IllegalAccessException e) {
-			//e.printStackTrace();
+			// e.printStackTrace();
 		}
 	}
 }
