@@ -18,6 +18,10 @@
     	<id>md_5-repo</id>
     	<url>http://repo.md-5.net/content/repositories/public/</url>
   	</repository>
+  	<repository>
+  		<id>devoted</id>
+  		<url>https://build.devotedmc.com/plugin/repository/everything/</url>
+  	</repository>
   </repositories>
   
   <modules>
