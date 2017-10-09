@@ -1,14 +1,17 @@
 package com.civclassic.betteralts.storage;
 
-import com.zaxxer.hikari.HikariConfig;
-import com.zaxxer.hikari.HikariDataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 
 public class Database {
 
@@ -22,12 +25,10 @@ public class Database {
 
 	private static final String CREATE_ALT = "INSERT INTO alt_accounts (uuid, name, main, code) VALUES (?,?,?,?);";
 
-	private static final String GET_ALTS = "SELECT a2.uuid, a2.code FROM alt_accounts a1 inner join alt_accounts a2 on a1.altGroupId = a2.altGroupId WHERE a1.uuid=?";
+	private static final String GET_ALT = "SELECT a2.uuid, a2.name FROM alt_accounts a1 inner join alt_accounts a2 on a1.altGroupId = a2.altGroupId WHERE a1.uuid=? and a2.code=?;";
 
-	private static final String GET_ALT_BY_CODE = "SELECT uuid FROM alt_accounts WHERE code=?";
-
-	private static final String GET_ALT_NAME = "SELECT name FROM alt_accounts WHERE uuid=?";
-
+	private static final String GET_ALTS = "SELECT a2.uuid, a2.name, a2.code FROM alt_accounts a1 inner join alt_accounts a2 on a1.altGroupId = a2.altGroupId WHERE a1.uuid=?;";
+	
 	private static final String GET_MAX_ALTID = "select max(altGroupId) from alt_accounts;";
 
 	private static final String ADD_REMAPPING = "INSERT INTO uuidRemapping (mojang_id, serverside_id) VALUES (?,?);";
@@ -38,12 +39,12 @@ public class Database {
 
 	private static final String GET_KEY_COUNT = "SELECT COUNT(*) FROM alt_accounts WHERE code=?;";
 
-	private static final String GET_CODE_BY_ALT = "select code from alt_accounts where uuid = ?;";
-
 	private static final String CHECK_NAME = "SELECT * FROM alt_accounts WHERE name=?;";
-
-	private static final String GET_ALT_ID = "SELECT altGroupId FROM alt_accounts WHERE uuid=?;";
-
+	
+	private static final String GET_ALTID = "SELECT altGroupId FROM alt_accounts where uuid=?;";
+	
+	private static final String GET_ALL_NAMES = "SELECT name FROM alt_accounts;";
+	
 	private HikariDataSource datasource;
 
 	public Database(Logger log, String user, String pass, String host, int port, String db, int poolSize,
@@ -94,10 +95,10 @@ public class Database {
 		UUID playerUUID;
 		if (isUUIDTaken(mojangId)) {
 			playerUUID = getAvailableUUID();
-			addUUIDRemapping(mojangId, playerUUID);
 		} else {
 			playerUUID = mojangId;
 		}
+		addUUIDRemapping(mojangId, playerUUID);
 		int altId = getMaximumAltId() + 1;
 		try (Connection conn = datasource.getConnection(); PreparedStatement ps = conn.prepareStatement(CREATE_ALT)) {
 			ps.setString(1, playerUUID.toString());
@@ -170,7 +171,7 @@ public class Database {
 	}
 
 	public int getAltId(UUID uuid) {
-		try (Connection conn = datasource.getConnection(); PreparedStatement ps = conn.prepareStatement(CREATE_ALT)) {
+		try (Connection conn = datasource.getConnection(); PreparedStatement ps = conn.prepareStatement(GET_ALTID)) {
 			ps.setString(1, uuid.toString());
 			try (ResultSet rs = ps.executeQuery()) {
 				if (rs.next()) {
@@ -191,47 +192,6 @@ public class Database {
 			ResultSet res = ps.executeQuery();
 			if (res.next()) {
 				return UUID.fromString(res.getString("real_id"));
-			}
-		} catch (SQLException e) {
-			e.printStackTrace();
-		}
-		return mojangId;
-	}
-
-	public String getAltName(UUID altId) {
-		try (Connection conn = datasource.getConnection(); PreparedStatement ps = conn.prepareStatement(GET_ALT_NAME)) {
-			ps.setString(1, altId.toString());
-			ResultSet res = ps.executeQuery();
-			if (res.next()) {
-				return res.getString("name");
-			}
-		} catch (SQLException e) {
-			e.printStackTrace();
-		}
-		return null;
-	}
-
-	public UUID getAltFromCode(String code) {
-		try (Connection conn = datasource.getConnection();
-				PreparedStatement ps = conn.prepareStatement(GET_ALT_BY_CODE)) {
-			ps.setString(1, code);
-			ResultSet res = ps.executeQuery();
-			if (res.next()) {
-				return UUID.fromString(res.getString("uuid"));
-			}
-		} catch (SQLException e) {
-			e.printStackTrace();
-		}
-		return null;
-	}
-
-	public String getCodeByUUID(UUID player) {
-		try (Connection conn = datasource.getConnection();
-				PreparedStatement ps = conn.prepareStatement(GET_CODE_BY_ALT)) {
-			ps.setString(1, player.toString());
-			ResultSet res = ps.executeQuery();
-			if (res.next()) {
-				return res.getString(1);
 			}
 		} catch (SQLException e) {
 			e.printStackTrace();
@@ -274,5 +234,51 @@ public class Database {
 			e.printStackTrace();
 		}
 		return false;
+	}
+	
+	public AltAccount getAltFromCode(UUID main, String code) {
+		try (Connection conn = datasource.getConnection(); PreparedStatement ps = conn.prepareStatement(GET_ALT)) {
+			ps.setString(1, main.toString());
+			ps.setString(2, code);
+			ResultSet res = ps.executeQuery();
+			if(res.next()) {
+				UUID uuid = UUID.fromString(res.getString("uuid"));
+				String name = res.getString("name");
+				return new AltAccount(uuid, name, code);
+			}
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		return null;
+	}
+	
+	public List<String> getAllAccounts() {
+		List<String> names = new ArrayList<String>();
+		try (Connection conn = datasource.getConnection(); PreparedStatement ps = conn.prepareStatement(GET_ALL_NAMES)) {
+			ResultSet res = ps.executeQuery();
+			while(res.next()) {
+				names.add(res.getString("name"));
+			}
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		return names;
+	}
+	
+	public List<AltAccount> getAlts(UUID player) {
+		List<AltAccount> alts = new ArrayList<AltAccount>();
+		try (Connection conn = datasource.getConnection(); PreparedStatement ps = conn.prepareStatement(GET_ALTS)) {
+			ps.setString(1, player.toString());
+			ResultSet res = ps.executeQuery();
+			while(res.next()) {
+				UUID uuid = UUID.fromString(res.getString("uuid"));
+				String name = res.getString("name");
+				String code = res.getString("code");
+				alts.add(new AltAccount(uuid, name, code));
+			}
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		return alts;
 	}
 }

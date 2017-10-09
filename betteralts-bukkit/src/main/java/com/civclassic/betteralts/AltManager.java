@@ -1,19 +1,22 @@
 package com.civclassic.betteralts;
 
-import com.civclassic.betteralts.storage.Database;
 import java.security.SecureRandom;
 import java.util.UUID;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
+
+import com.civclassic.betteralts.storage.Database;
+
 import vg.civcraft.mc.civmodcore.itemHandling.ItemMap;
 import vg.civcraft.mc.namelayer.NameAPI;
 
 public class AltManager {
 
-	private static Pattern nameRegex = Pattern.compile("[a-zA-Z0-9_]{3,16}");
+	private static Pattern nameRegex = Pattern.compile("\\w{3,16}");
 	private static final char[] alphabet = "QWERTYUIOPASDFGHJKLZXCVBNMqwertyuiopasdfghjklzxcvbnm1234567890"
 			.toCharArray();
 
@@ -77,7 +80,7 @@ public class AltManager {
 		return code.toString();
 	}
 
-	private double getMultiplier(UUID player) {
+	public double getMultiplier(UUID player) {
 		int altCount = db.getAltCount(player);
 		return Math.pow(altCount, 1.5);
 	}

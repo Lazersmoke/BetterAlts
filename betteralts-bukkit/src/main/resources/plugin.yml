@@ -6,6 +6,7 @@ main: ${project.groupId}.${project.artifactId}
 commands:
   createalt:
     aliases: [ca, altcreate, newalt]
+  altmats:
   alts:
     permission: betteralts.admin
 permissions:

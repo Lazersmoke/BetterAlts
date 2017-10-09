@@ -1,6 +1,5 @@
 package com.civclassic.betteralts;
 
-import com.civclassic.betteralts.storage.Database;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -8,10 +7,13 @@ import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.sql.SQLException;
-import java.util.List;
 import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import com.civclassic.betteralts.storage.AltAccount;
+import com.civclassic.betteralts.storage.Database;
+
 import net.md_5.bungee.api.ChatColor;
 import net.md_5.bungee.api.connection.PendingConnection;
 import net.md_5.bungee.api.event.PreLoginEvent;
@@ -29,7 +31,6 @@ public class BetterAltsBungee extends Plugin implements Listener {
 	private Configuration config;
 	private Database db;
 	private Logger log;
-	private List<String> baseIps;
 
 	@Override
 	public void onEnable() {
@@ -70,7 +71,6 @@ public class BetterAltsBungee extends Plugin implements Listener {
 			log.log(Level.SEVERE, "Error loading db, check the credentials?", e);
 			return;
 		}
-		baseIps = config.getStringList("baseIPs");
 		getProxy().getPluginManager().registerListener(this, this);
 	}
 
@@ -82,26 +82,27 @@ public class BetterAltsBungee extends Plugin implements Listener {
 			event.setCancelled(true);
 			return;
 		}
+		String code = conn.getVirtualHost().getHostString().split(".")[0];
+		if(code.length() != 8) {
+			code = "";
+		}
+		
 		UUID mojangId = conn.getUniqueId();
 		// first check for remap
-		UUID serverSideId = db.getServerSideId(mojangId);
-
-		int altId = db.getAltId(mojangId);
-		// if altId is -1, the player is logging in for the first time
-		if (altId == -1) {
-			serverSideId = db.addNewPlayer(serverSideId, conn.getName());
+		UUID serverSideMainId = db.getServerSideId(mojangId);
+		
+		if(serverSideMainId == null) {
+			serverSideMainId = db.addNewPlayer(serverSideMainId, conn.getName());
 		}
 
-		// check if player is using right login code
-		String loginCode = db.getCodeByUUID(serverSideId);
-
-		if (!conn.getVirtualHost().getHostString().startsWith(loginCode)) {
-			event.setCancelReason(ChatColor.RED + "You are using an invalid login id");
+		AltAccount alt = db.getAltFromCode(serverSideMainId, code);
+		if (alt == null) {
+			event.setCancelReason(ChatColor.RED + "You are using an invalid login code");
 			event.setCancelled(true);
 			return;
 		}
-		conn.setUniqueId(serverSideId);
-		setRealName(conn, db.getAltName(serverSideId));
+		conn.setUniqueId(alt.getUUID());
+		setRealName(conn, alt.getName());
 	}
 
 	private void setRealName(PendingConnection conn, String name) {

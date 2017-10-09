@@ -1,6 +1,7 @@
 package com.civclassic.betteralts;
 
 import com.civclassic.betteralts.commands.AltsCommandManager;
+
 import vg.civcraft.mc.civmodcore.ACivMod;
 
 public class BetterAlts extends ACivMod {
