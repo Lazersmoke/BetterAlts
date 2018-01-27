@@ -18,7 +18,7 @@ public class Database {
 			"  uuid VARCHAR(40) UNIQUE NOT NULL," +
 			"  name VARCHAR(16) UNIQUE NOT NULL," +
 			"  main VARCHAR(40) NOT NULL," +
-			"  code VARCHAR(8) UNIQUE NOT NULL" +
+			"  code VARCHAR(8) PRIMARY KEY" +
 			");" +
 			"CREATE TABLE IF NOT EXISTS main_accounts (" +
 			"  mojang_id VARCHAR(40) UNIQUE NOT NULL," +
