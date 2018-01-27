@@ -99,14 +99,6 @@ public class BetterAltsBungee extends Plugin implements Listener {
 	private void setRealName(PendingConnection conn, String name) {
 		InitialHandler handle = (InitialHandler) conn;
 		try {
-			Field loginField = InitialHandler.class.getDeclaredField("loginRequest");
-			loginField.setAccessible(true);
-			LoginRequest request = (LoginRequest) loginField.get(handle);
-			request.setData(name);
-		} catch (NoSuchFieldException | IllegalArgumentException | IllegalAccessException e) {
-			//e.printStackTrace();
-		}
-		try {
 			Field nameField = InitialHandler.class.getDeclaredField("name");
 			nameField.setAccessible(true);
 			nameField.set(handle, name);
