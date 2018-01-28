@@ -4,6 +4,8 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -13,35 +15,39 @@ import com.zaxxer.hikari.HikariDataSource;
 
 public class Database {
 
-	public static final String INIT_DATABASE = 
+	private static final String INIT_DATABASE = 
 			"CREATE TABLE IF NOT EXISTS alt_accounts (" +
+			"  group BIGINT NOT NULL," +
 			"  uuid VARCHAR(40) UNIQUE NOT NULL," +
 			"  name VARCHAR(16) UNIQUE NOT NULL," +
-			"  main VARCHAR(40) NOT NULL," +
 			"  code VARCHAR(8) PRIMARY KEY" +
 			");" +
 			"CREATE TABLE IF NOT EXISTS main_accounts (" +
+			"  group bigint auto_increment primary key," +
 			"  mojang_id VARCHAR(40) UNIQUE NOT NULL," +
-			"  real_id VARCHAR(40) UNIQUE NOT NULL" +
-			");";
+			"  maxonline int not null default 1" +
+			");" +
+			"CREATE TABLE IF NOT EXISTS reserved_names (" +
+			"  reserved_for VARCHAR(40) NOT NULL," +
+			"  name VARCHAR(16) PRIMARY KEY);";
 	
-	public static final String CREATE_ALT = "INSERT INTO alt_accounts (uuid, name, main, code) VALUES (?,?,?,?);";
+	private static final String CREATE_ALT = "INSERT INTO alt_accounts (group, uuid, name, code) SELECT main_accounts.group FROM main_accounts WHERE mojang_id=?, ?, ?, ?;";
 	
-	public static final String GET_ALTS = "SELECT * FROM alt_accounts WHERE main=?";
+	private static final String GET_ALTS = "SELECT * FROM alt_accounts JOIN (main_accounts) on (main_accounts.group = alt_accounts.group) WHERE main_accounts.mojang_id=?;";
 	
-	public static final String GET_ALT_BY_CODE = "SELECT uuid FROM alt_accounts WHERE code=?";
+	private static final String GET_ALT_BY_CODE = "SELECT uuid FROM alt_accounts WHERE code=?";
 	
-	public static final String GET_ALT_NAME = "SELECT name FROM alt_accounts WHERE uuid=?";
+	private static final String GET_ALT_NAME = "SELECT name FROM alt_accounts WHERE uuid=?";
 	
-	public static final String ADD_NEW_MAIN = "INSERT INTO main_accounts (mojang_id, real_id) VALUES (?,?);";
+	private static final String ADD_NEW_MAIN = "INSERT INTO main_accounts (mojang_id) VALUES (?);";
 	
-	public static final String GET_REAL_ID = "SELECT * FROM main_accounts WHERE mojang_id=?;";
+	private static final String GET_MAX_ONLINE = "SELECT maxonline FROM main_accounts WHERE mojang_id=?;";
 	
-	public static final String GET_ALT_COUNT = "SELECT COUNT(*) FROM alt_accounts WHERE main=?;";
+	private static final String GET_ALT_COUNT = "SELECT COUNT(*) FROM alt_accounts JOIN (main_accounts) on (main_accounts.group = alt_accounts.group) WHERE main_accounts.mojang_id=?;";
 	
-	public static final String GET_KEY_COUNT = "SELECT COUNT(*) FROM alt_accounts WHERE code=?;";
+	private static final String GET_MAIN = "SELECT mojang_id FROM main_accounts JOIN (alt_accounts) on (alt_accounts.group = main_accounts.group) WHERE alt_accounts.uuid=?;";
 	
-	public static final String GET_MAIN = "SELECT main FROM alt_accounts WHERE uuid=?;";
+	private static final String KEY_CHECK = "SELECT 1 FROM alt_accounts WHERE code=?;";
 	
 	private HikariDataSource datasource;
 
@@ -92,13 +98,22 @@ public class Database {
 		}
 	}
 	
-	public boolean addNewPlayer(UUID mojangId) {
-		try (Connection conn = datasource.getConnection();
-				PreparedStatement ps = conn.prepareStatement(ADD_NEW_MAIN)) {
-			UUID realId = UUID.randomUUID();
+	public boolean addNewPlayer(UUID mojangId, String mojangName) {
+		try (Connection conn = datasource.getConnection()) {
+			PreparedStatement ps = conn.prepareStatement(ADD_NEW_MAIN);
 			ps.setString(1, mojangId.toString());
-			ps.setString(2, realId.toString());
 			ps.executeUpdate();
+			ps = conn.prepareStatement(GET_ALT_NAME);
+			ps.setString(1, mojangId.toString());
+			UUID civId = mojangId;
+			if(ps.executeQuery().next()) {
+				civId = UUID.randomUUID();
+			}
+			ps = conn.prepareStatement(CREATE_ALT);
+			ps.setString(1, mojangId.toString());
+			ps.setString(2, civId.toString());
+			ps.setString(3, mojangName);
+			ps.setString(4, "");
 			return true;
 		} catch (SQLException e) {
 			e.printStackTrace();
@@ -110,9 +125,9 @@ public class Database {
 		UUID generatedId = UUID.randomUUID();
 		try (Connection conn = datasource.getConnection();
 				PreparedStatement ps = conn.prepareStatement(CREATE_ALT)) {
-			ps.setString(1, generatedId.toString());
-			ps.setString(2, altName);
-			ps.setString(3, main.toString());
+			ps.setString(1, main.toString());
+			ps.setString(2, generatedId.toString());
+			ps.setString(3, altName);
 			ps.setString(4, code);
 			ps.executeUpdate();
 		} catch (SQLException e) {
@@ -121,27 +136,13 @@ public class Database {
 		return generatedId;
 	}
 	
-	public UUID getRealId(UUID mojangId) {
-		try (Connection conn = datasource.getConnection();
-				PreparedStatement ps = conn.prepareStatement(GET_REAL_ID)) {
-			ps.setString(1, mojangId.toString());
-			ResultSet res = ps.executeQuery();
-			if(res.next()) {
-				return UUID.fromString(res.getString("real_id"));
-			}
-		} catch (SQLException e) {
-			e.printStackTrace();
-		}
-		return null;
-	}
-	
 	public boolean isValidAlt(UUID main, UUID alt) {
 		try (Connection conn = datasource.getConnection();
 				PreparedStatement ps = conn.prepareStatement(GET_MAIN)) {
 			ps.setString(1, alt.toString());
 			ResultSet res = ps.executeQuery();
 			if(res.next()) {
-				return UUID.fromString(res.getString("main")).equals(main);
+				return UUID.fromString(res.getString("mojang_id")).equals(main);
 			}
 		} catch (SQLException e) {
 			e.printStackTrace();
@@ -193,16 +194,43 @@ public class Database {
 	
 	public boolean keyExists(String key) {
 		try (Connection conn = datasource.getConnection();
-				PreparedStatement ps = conn.prepareStatement(GET_KEY_COUNT)) {
+				PreparedStatement ps = conn.prepareStatement(KEY_CHECK)) {
 			ps.setString(1, key);
 			ResultSet res = ps.executeQuery();
-			if(res.next()) {
-				return res.getInt(1) == 1;
-			}
+			return res.next();
 		} catch (SQLException e) {
 			e.printStackTrace();
 		}
 		return false;
+	}
+	
+	public int getMaxOnlineCount(UUID player) {
+		try (Connection conn = datasource.getConnection();
+				PreparedStatement ps = conn.prepareStatement(GET_MAX_ONLINE)) {
+			ps.setString(1, player.toString());
+			ResultSet res = ps.executeQuery();
+			if(res.next()) {
+				return res.getInt("maxonline");
+			}
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		return 1;
+	}
+	
+	public Set<UUID> getAlts(UUID mojangId) {
+		Set<UUID> alts = new HashSet<UUID>();
+		try (Connection conn = datasource.getConnection();
+				PreparedStatement ps = conn.prepareStatement(GET_ALTS)) {
+			ps.setString(1, mojangId.toString());
+			ResultSet res = ps.executeQuery();
+			while(res.next()) {
+				alts.add(UUID.fromString(res.getString("uuid")));
+			}
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		return alts;
 	}
 }
 
