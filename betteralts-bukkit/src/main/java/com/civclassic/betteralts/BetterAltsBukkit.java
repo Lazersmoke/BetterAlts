@@ -231,6 +231,7 @@ public class BetterAltsBukkit extends JavaPlugin {
 	private String generateLoginCode() {
 		String code = "";
 		do {
+			code = "";
 			for(int i = 0; i < 8; i++) {
 				code += alphabet[rng.nextInt(alphabet.length)];
 			}
