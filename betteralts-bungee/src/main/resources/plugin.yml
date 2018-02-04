@@ -1,4 +1,4 @@
-name: ${project.name}
-main: ${project.groupId}.${project.artifactId}
+name: BetterAltsBungee
+main: com.civclassic.betteralts.BetterAltsBungee
 version: ${project.version}
 author: TealNerd

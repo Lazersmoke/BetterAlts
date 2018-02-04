@@ -1,13 +1,10 @@
-name: ${project.name}
+name: BetterAlts
 version: ${project.version}
 author: [TealNerd]
 depend: [CivModCore]
-main: ${project.groupId}.${project.artifactId}
+main: com.civclassic.betteralts.BetterAltsBukkit
 commands:
-  createalt:
-    aliases: [ca, altcreate, newalt]
   alts:
-    permission: betteralts.admin
 permissions:
   betteralts.admin:
     default: op

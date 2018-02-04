@@ -6,16 +6,13 @@ import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
-import java.sql.SQLException;
 import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import com.civclassic.betteralts.storage.Database;
-
 import net.md_5.bungee.api.ChatColor;
 import net.md_5.bungee.api.connection.PendingConnection;
-import net.md_5.bungee.api.event.PreLoginEvent;
+import net.md_5.bungee.api.event.LoginEvent;
 import net.md_5.bungee.api.plugin.Listener;
 import net.md_5.bungee.api.plugin.Plugin;
 import net.md_5.bungee.config.Configuration;
@@ -23,12 +20,11 @@ import net.md_5.bungee.config.ConfigurationProvider;
 import net.md_5.bungee.config.YamlConfiguration;
 import net.md_5.bungee.connection.InitialHandler;
 import net.md_5.bungee.event.EventHandler;
-import net.md_5.bungee.protocol.packet.LoginRequest;
 
 public class BetterAltsBungee extends Plugin implements Listener {
 
 	private Configuration config;
-	private Database db;
+	private AltApi api;
 	private Logger log;
 	
 	public void onEnable() {
@@ -60,39 +56,50 @@ public class BetterAltsBungee extends Plugin implements Listener {
 		long connectionTimeout = config.getLong("connectionTimeout");
 		long idleTimeout = config.getLong("idleTimeout");
 		long maxLife = config.getLong("maxLifetime");
-		db = new Database(log, user, pass, host, port, database, poolSize, connectionTimeout, idleTimeout, maxLife);
-		try {
-			db.available();
-		} catch (SQLException e) {
-			log.log(Level.SEVERE, "Error loading db, check the credentials?", e);
+		api = new AltManager(log, user, pass, host, port, database, poolSize, connectionTimeout, idleTimeout, maxLife);
+		if (!api.initialized()) {
+			log.log(Level.SEVERE, "Error loading db, check the credentials?");
 			return;
 		}
 		getProxy().getPluginManager().registerListener(this, this);
 	}
 	
 	@EventHandler
-	public void onPreLogin(PreLoginEvent event) {
+	public void onLogin(LoginEvent event) {
 		PendingConnection conn = event.getConnection();
 		UUID mojangId = conn.getUniqueId();
-		UUID main;
-		do {
-			db.addNewPlayer(mojangId);
-		} while ((main = db.getRealId(mojangId)) == null);
-		conn.setUniqueId(main);
+		String mojangName = conn.getName();
+		api.addNewPlayer(mojangId, mojangName);
 		String code = conn.getVirtualHost().getHostString().split("\\.")[0];
-		if(code == "mc" || code == "play") return;
+		if(code.length() < 8) code = "";
 		if(!conn.isOnlineMode()) {
 			event.setCancelReason(ChatColor.DARK_RED + "You must be authenticated to connect!");
 			event.setCancelled(true);
 		} else {
-			UUID alt = db.getAltFromCode(code);
-			if(db.isValidAlt(main, alt)) {
-				conn.setUniqueId(alt);
-				setRealName(conn, db.getAltName(alt));
+			System.out.println("Code: " + code);
+			UUID alt = api.getAlt(mojangId, code);
+			if(alt == null || alt.equals(mojangId)) return;
+			if(api.isValidAlt(mojangId, alt)) {
+				setRealUUID(conn, alt);
+				setRealName(conn, conn.getName());
 			} else {
 				event.setCancelReason(ChatColor.DARK_RED + "Invalid alt code, message modmail if you think this is an error.");
 				event.setCancelled(true);
 			}
+		}
+	}
+	
+	private void setRealUUID(PendingConnection conn, UUID uuid) {
+		InitialHandler handle = (InitialHandler) conn;
+		try {
+			Field uuidField = InitialHandler.class.getDeclaredField("uniqueId");
+			uuidField.setAccessible(true);
+			uuidField.set(handle, uuid);
+			uuidField = InitialHandler.class.getDeclaredField("offlineId");
+			uuidField.setAccessible(true);
+			uuidField.set(handle, uuid);
+		} catch (NoSuchFieldException | IllegalArgumentException | IllegalAccessException e) {
+			log.log(Level.SEVERE, "Failed to set player uuid", e);
 		}
 	}
 	
@@ -103,7 +110,7 @@ public class BetterAltsBungee extends Plugin implements Listener {
 			nameField.setAccessible(true);
 			nameField.set(handle, name);
 		} catch (NoSuchFieldException | IllegalArgumentException | IllegalAccessException e) {
-			//e.printStackTrace();
+			log.log(Level.SEVERE, "Failed to set player name", e);
 		}
 	}
 }

@@ -8,12 +8,13 @@ database:
  connectionTimeout: 10000
  idleTimeout: 600000
  maxLifetime: 7200000
-requirements:
+altCost:
  diamond:
   material: DIAMOND
   amount: 32
+onlineCost:
  emerald:
   material: EMERALD
   amount: 64
-#Uses javascript engine to compute requirements, passes the current number of alts as the variable `count`
-scalingEquation: "count * count"
+altScaleFactor: 2.2 #number of alts ^ scaleFactor cost
+onlineScaleFactor: 2.5
