@@ -17,7 +17,7 @@ public class AltManager implements AltApi {
 
 	private static final String ALT_TABLE = 
 			"CREATE TABLE IF NOT EXISTS alt_accounts (" +
-			"  group_id BIGINT NOT NULL," +
+			"  group_id BIGINT FOREIGN KEY REFERENCES main_accounts(group_id)," +
 			"  uuid VARCHAR(40) UNIQUE NOT NULL," +
 			"  name VARCHAR(16) UNIQUE NOT NULL," +
 			"  code VARCHAR(8) PRIMARY KEY" +
